@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lesson 01 — First 3D Scene</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0e0e12; overflow: hidden; font-family: system-ui, sans-serif; }
+    canvas { display: block; }
+    .label { position: fixed; left: 24px; bottom: 24px; color: #f2f2f2; }
+    .label h1 { margin: 0; font-size: 40px; letter-spacing: -0.02em; }
+    .label p { margin: 4px 0 0; opacity: .6; }
+  </style>
+  <!-- Import map = tells the browser where "three" lives (no build tools needed yet) -->
+  <script type="importmap">
+    { "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <div class="label"><h1>Hello, 3D</h1><p>Drag to orbit · scroll to zoom</p></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // 1. SCENE — your AE composition. Everything lives inside it.
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#0e0e12');
+
+    // 2. CAMERA — like an AE 3D camera. (FOV in degrees, aspect, near clip, far clip)
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+    camera.position.set(0, 1.2, 6);
+
+    // 3. RENDERER — draws the scene through the camera onto a <canvas>, every frame.
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 4. MESH = GEOMETRY (shape) + MATERIAL (surface). Like a shape layer + its fill/material options.
+    const knot = new THREE.Mesh(
+      new THREE.TorusKnotGeometry(1, 0.35, 200, 32),
+      new THREE.MeshStandardMaterial({ color: '#ff5a36', roughness: 0.35, metalness: 0.2 })
+    );
+    scene.add(knot);
+
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(4, 64),
+      new THREE.MeshStandardMaterial({ color: '#1c1c24' })
+    );
+    floor.rotation.x = -Math.PI / 2;   // rotations are in RADIANS (Math.PI = 180°)
+    floor.position.y = -1.6;
+    scene.add(floor);
+
+    // 5. LIGHTS — Standard materials are black without light. Key + fill, same as a 3-point setup.
+    scene.add(new THREE.AmbientLight('#ffffff', 0.35));
+    const key = new THREE.DirectionalLight('#ffffff', 2.2);
+    key.position.set(3, 4, 2);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight('#4a7dff', 1.5);
+    rim.position.set(-3, 2, -3);
+    scene.add(rim);
+
+    // 6. CONTROLS — let the viewer move the camera (damping = ease-out on release).
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // 7. ANIMATION LOOP — no timeline here: you compute each frame from time `t`.
+    //    Think of it as an AE expression evaluated 60x per second.
+    const clock = new THREE.Clock();
+    renderer.setAnimationLoop(() => {
+      const t = clock.getElapsedTime();
+      knot.rotation.y = t * 0.5;                     // linear spin  ≈ time*90 in AE
+      knot.rotation.x = Math.sin(t * 0.8) * 0.3;     // wiggle-like sway
+      knot.position.y = Math.sin(t * 1.6) * 0.15;    // gentle float
+      controls.update();
+      renderer.render(scene, camera);
+    });
+
+    // 8. RESPONSIVE — keep the camera aspect correct when the window changes.
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
