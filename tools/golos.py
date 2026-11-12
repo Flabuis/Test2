@@ -29,7 +29,7 @@ def analyze(x):
 def stats(f0, sp):
     v = f0 > 0; lf = np.log(f0[v])
     e = np.log(sp + 1e-12); en = e.max(axis=1); voiced = v & (en > np.percentile(en, 30))
-    return lf.mean(), lf.std(), e[voiced].mean(axis=0)
+    return np.median(lf), lf.std(), e[voiced].mean(axis=0)
 
 
 def warp(sp, a):
