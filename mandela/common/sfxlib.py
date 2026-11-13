@@ -78,3 +78,54 @@ def outro(m, t0):
     m.add(motor(.6, 80), t0 + 2.6, .3); m.add(thud(120, .2, 1500), t0 + 2.8, .5); m.add(clack(800), 2.85 + t0, .4)
     m.add(click(), t0 + 4.2, .6); m.add(thud(50, .3, 400), t0 + 4.2, .3)
     m.add(fade(drone(3.0, 41, 250), .5, 2.5), t0 + 4.0, .4)
+
+
+# ---------- «кинематографичные» хоррор-звуки (с тома 6) ----------
+def saw(f, d):
+    t = tt(d); return 2 * ((f * t) % 1) - 1
+def braam(d=3.0, f=41.2):
+    """Тяжёлый «брам»: расстроенные пилы внизу, перегруз, раскрывающийся фильтр."""
+    n = int(d * SR); x = sum(saw(f * m * (1 + dt), d) for m, dt in ((1, 0), (1, .006), (2, -.004), (1.5, .003), (.5, 0)))
+    x = np.tanh(x * 1.5); out = np.zeros(n); seg = 2048
+    for s in range(0, n, seg):
+        k = s / n; c = 300 + 2200 * np.sin(np.pi * min(1, k * 1.6)) ** 2; out[s:s + seg] = lp(x[s:s + seg], c, 1)[:len(out[s:s + seg])]
+    return out * env(n, .04, d * .45, 2.2) * .7
+def impact(d=2.5):
+    """Резкое появление: суб-удар с падением высоты + шумовой взрыв + металлический призвук."""
+    t = tt(d); n = len(t)
+    sub = np.sin(2 * np.pi * np.cumsum(30 + 90 * np.exp(-t * 6)) / SR) * np.exp(-t * 2.2)
+    burst = lp(noise(d), 4000) * np.exp(-t * 9)
+    metal = sum(np.sin(2 * np.pi * f * t) * a for f, a in ((523, .3), (1371, .2), (2219, .12), (3203, .08))) * np.exp(-t * 3)
+    return np.tanh((sub * 1.2 + burst * .8 + metal * .5) * 1.4) * .8
+def riser(d=6.0, f0=60, f1=900):
+    """Нарастание: тон, уходящий вверх (с октавными слоями), и шум, который раскрывается."""
+    t = tt(d); k = t / d; out = np.zeros(len(t))
+    for o in (1, 2, 4):
+        f = f0 * o * (f1 / f0) ** k; out += np.sin(2 * np.pi * np.cumsum(f) / SR) / o
+    nz = noise(d); out2 = np.zeros(len(t)); seg = 2048
+    for s in range(0, len(t), seg):
+        c = 200 + 6000 * (s / len(t)) ** 2; out2[s:s + seg] = lp(nz[s:s + seg], c, 1)[:len(out2[s:s + seg])]
+    return (out * .4 + out2 * .5) * k ** 2
+def choir(d, notes=(50, 57, 62, 65), bright=1.0):
+    """Хор «ааа»: пилы через формантные полосы гласной А, медленное вибрато."""
+    t = tt(d); x = np.zeros(len(t))
+    for m in notes:
+        f = 440 * 2 ** ((m - 69) / 12)
+        for dt in (-.004, 0, .005):
+            ph = np.cumsum(f * (1 + dt) * (1 + .006 * np.sin(2 * np.pi * 5.2 * t + m))) / SR; x += 2 * (ph % 1) - 1
+    y = bp(x, 650, 1100) * 1.0 + bp(x, 1000, 1500) * .5 * bright + bp(x, 2400, 3000) * .2 * bright
+    return fade(y / len(notes) * .5, 1.5, 1.5)
+def dark_amb(d, base=36):
+    """Пугающий эмбиент: низкий гул с биениями, «дыхание» фильтрованного шума, редкие металлические стоны."""
+    t = tt(d); f = 440 * 2 ** ((base - 69) / 12)
+    hum_ = sum(np.sin(2 * np.pi * f * m * t * (1 + .0015 * np.sin(t * .3 + m))) / m for m in (1, 1.01, 1.5, 2.02))
+    breath_ = lp(noise(d), 300) * (.5 + .5 * np.sin(2 * np.pi * .11 * t)) * 1.5
+    out = lp(hum_, 500) * .4 + breath_ * .5
+    for k in range(int(d / 7)):
+        t0 = rng.uniform(0, max(.1, d - 4)); m = int(3.5 * SR); tm = np.arange(m) / SR; ff = rng.uniform(180, 420)
+        moan = np.sin(2 * np.pi * np.cumsum(ff * (1 + .08 * np.sin(2 * np.pi * .4 * tm))) / SR) * np.sin(np.pi * tm / 3.5) ** 2 * .12
+        i = int(t0 * SR); out[i:i + m] += moan[:len(out) - i]
+    return fade(out, 2, 2)
+def reverse_swell(x):
+    """Обратный реверб-нарост перед ударом."""
+    y = reverb(np.concatenate([x, np.zeros(int(1.5 * SR))]))[::-1]; return y / (np.max(np.abs(y)) + 1e-9) * .6
