@@ -3,6 +3,7 @@
 R — диктор: RHVoice aleksandr-hq, огрублённый (ниже, хрипотца, лёгкий перегруз), интонация живая.
 A — альтернат: низкий, плавающий по высоте, с «неправильными» формантами и эхом.
 M — живой человек на любительской записи: mikhail, полоса микрофона видеокамеры, без огрубления.
+F — голос по телефону (автоответчик): elena, телефонная полоса. W — тот же голос, но «не тот»: ниже, плывёт, медленнее.
 Нужно: rhvoice rhvoice-russian, pip install pyworld soundfile, numpy, scipy.
 """
 import sys, os, subprocess, tempfile
@@ -10,7 +11,7 @@ import numpy as np, soundfile as sf, pyworld as pw
 from scipy.signal import butter, lfilter, resample_poly
 
 SR = 44100
-VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail'}
+VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail', 'F': 'elena', 'W': 'elena'}
 
 
 def bp(x, lo, hi, sr):
@@ -42,6 +43,19 @@ def camcorder(x, sr):
     y = bp(x, 180, 5200, sr); y = y / (np.max(np.abs(y)) + 1e-9); return np.tanh(y * 1.4) / np.tanh(1.4)
 
 
+def phone(x, sr):
+    y = bp(x, 320, 3300, sr); y = y / (np.max(np.abs(y)) + 1e-9); return np.tanh(y * 2.0) / np.tanh(2.0)
+
+
+def wrong(x, sr):
+    f0, t = pw.harvest(x, sr, f0_floor=80, f0_ceil=500, frame_period=5)
+    sp = pw.cheaptrick(x, f0, t, sr); ap = pw.d4c(x, f0, t, sr)
+    n = sp.shape[1]; src = np.clip(np.arange(n) / .9, 0, n - 1); sp = np.stack([np.interp(src, np.arange(n), r) for r in sp])
+    k = np.arange(len(f0)); f1 = np.where(f0 > 0, f0 * .82 * (1 + .06 * np.sin(k * .04)), 0)
+    y = pw.synthesize(f1, sp, ap, sr, frame_period=6.5)        # медленнее: синтез с более длинным шагом кадра
+    return phone(y, sr)
+
+
 def alternate(x, sr):
     f0, t = pw.harvest(x, sr, f0_floor=60, f0_ceil=400, frame_period=5)
     sp = pw.cheaptrick(x, f0, t, sr); ap = pw.d4c(x, f0, t, sr)
@@ -63,7 +77,7 @@ def main():
         if len(p) != 4: continue
         a, b, who, text = float(p[0]), float(p[1]), p[2], p[3]
         x, sr = tts(text, VOICE[who])
-        y = rough(x, sr) if who == 'R' else alternate(x, sr) if who == 'A' else camcorder(x, sr)
+        y = {'R': rough, 'A': alternate, 'M': camcorder, 'F': phone, 'W': wrong}[who](x, sr)
         y = resample_poly(y, SR, sr)
         # подогнать под окно субтитра, но не быстрее x1.25 (через ffmpeg atempo)
         win = b - a; dur = len(y) / SR; tempo = min(1.25, max(1.0, dur / win))

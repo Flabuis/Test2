@@ -77,7 +77,7 @@ function cameraFor(z,m=0){ // z: 0 — общий план, 1 — экран в�
   const S=new THREE.Vector3(0,SCR.y,SCR.z+fit),SL=new THREE.Vector3(0,SCR.y,SCR.z);camera.position.copy(W).lerp(S,z);camera.lookAt(L.clone().lerp(SL,z))}
 
 // кассета n: рука берёт и вставляет. k — время от начала действия
-function handAct(t,vol){const tape=tapes[vol-1],r=rest(vol),slotP=new THREE.Vector3(-.12,.78,.46);hand.visible=true;hand.scale.setScalar(HS);
+function handAct(t,vol,cut){const tape=tapes[vol-1],r=rest(vol),slotP=new THREE.Vector3(-.12,.78,.46);hand.visible=true;hand.scale.setScalar(HS);
   // ключевые точки — для центра кассеты; рука держится за её верх/торец со смещением OFF
   const YAW=.8,od=(y,d)=>new THREE.Vector3(Math.sin(YAW)*d,y,Math.cos(YAW)*d);const OFF=od(.30,.46),OFFF=od(.12,.44);
   const away=new THREE.Vector3(2.4,1.5,1.6),lift=r.clone().add(new THREE.Vector3(-.25,.45,.55)),pre=slotP.clone().add(new THREE.Vector3(0,0,.55)),inS=slotP.clone().add(new THREE.Vector3(0,0,-.16)),deep=slotP.clone().add(new THREE.Vector3(0,0,-.36));
@@ -89,11 +89,14 @@ function handAct(t,vol){const tape=tapes[vol-1],r=rest(vol),slotP=new THREE.Vect
   else if(t<10.0){tp=lift.clone().lerp(pre,eInOut(P(t,9.2,10.0)));rz=Math.PI/2;off=OFFF;c=1}
   else if(t<10.6){tp=pre.clone().lerp(inS,eInOut(P(t,10.0,10.6)));rz=Math.PI/2;off=OFFF;c=lerp(1,.3,P(t,10.4,10.6))}
   else{tp=inS.clone().lerp(deep,eOut(P(t,10.6,10.9)));rz=Math.PI/2;c=.3;hp=inS.clone().add(OFFF).lerp(away,eIn(P(t,10.7,11.7)));if(t>11.7)hand.visible=false}
+  if(cut&&t>=cut){ // вариант «без руки»: склейка — кассета уже сама вползает в щель, руки нет
+    hand.visible=false;const k=P(t,cut,10.6),jit=Math.floor(t*FPS)%3===0?.01:0;tp=t<10.6?pre.clone().lerp(inS,k*k+jit):inS.clone().lerp(deep,eOut(P(t,10.6,10.9)));rz=Math.PI/2}
   hand.position.copy(hp||tp.clone().add(off));hand.rotation.set(0,YAW,0);hand.rotateX(rx);curl(c);
   tape.position.copy(tp);tape.rotation.set(0,0,rz)}
 // ---------- кадр интро ----------
 // ctx — канвас 320x240; epFrame(tEp) рисует кадр серии в канвас и возвращает его; vol — номер тома
-export function intro(t,ctx,epFrame,vol){
+// opts.cut — время склейки: рука пропадает, кассета вставляется сама; opts.hook(t, scene) — крючок серии
+export function intro(t,ctx,epFrame,vol,opts={}){
   if(t<4.6){ctx.fillStyle='#000';ctx.fillRect(0,0,RW,RH);const a=P(t,.3,.9)*(1-P(t,4.0,4.6));if(a<=0)return;ctx.globalAlpha=Math.round(a*8)/8;
     text(ctx,'по мотивам',RW/2,62,{align:'center',color:'#a0a0a0'});text(ctx,'THE MANDELA CATALOGUE',RW/2,84,{align:'center',size:16});
     text(ctx,'автор оригинала — Alex Kister',RW/2,112,{align:'center',color:'#d0d0d0'});
@@ -106,10 +109,12 @@ export function intro(t,ctx,epFrame,vol){
   scrTex.needsUpdate=true;
   const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<10.9?1.6:t<11.1?.2:1.3)*flick*fade;amb.intensity=.25*fade;
   spot.intensity=t<5.5?0:t<5.6?3:8*(.95+.05*hash(Math.floor(t*FPS),5));slotLed.material.color.set(t>10.5?0xff2020:0x300000);
-  handAct(t,vol);
-  cameraFor(eInOut(P(t,12.0,14.0)),eInOut(P(t,6.8,8.4))*(1-eInOut(P(t,9.0,10.0))));handL.position.copy(hand.position).add(new THREE.Vector3(.3,.5,.6));handL.intensity=hand.visible?1.4:0;
+  handAct(t,vol,opts.cut);if(opts.hook)opts.hook(t,scene);
+  const back=opts.cut?(t>=opts.cut?0:1):(1-eInOut(P(t,9.0,10.0)));
+  cameraFor(eInOut(P(t,12.0,14.0)),eInOut(P(t,6.8,8.4))*back);handL.position.copy(hand.position).add(new THREE.Vector3(.3,.5,.6));handL.intensity=hand.visible?1.4:0;
   draw3D(scene,camera,ctx);
   if(fade<1){ctx.fillStyle=`rgba(0,0,0,${Math.round((1-fade)*16)/16})`;ctx.fillRect(0,0,RW,RH)}
+  if(opts.cut&&t>=opts.cut&&t<opts.cut+.14)snow(ctx,t,.9);
   // название поверх кассет
   if(t>=5.3&&t<7.6&&!(t<5.7&&Math.floor(t*FPS)%2)){const v=new THREE.Vector3(1.35,1.38,0).project(camera),x=Math.round((v.x*.5+.5)*RW),y=Math.round((-v.y*.5+.5)*RH);
     text(ctx,'THE MANDELA',x,y-12,{align:'center',size:13,color:'#e8e2d0'});text(ctx,'CATALOGUE',x,y+2,{align:'center',size:13,color:'#e8e2d0'});

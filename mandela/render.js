@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
     const out = path.join(ROOT, ep, `${ep}.mp4`);
     const [T, FPS] = await page.evaluate(() => [window.T, window.FPS]), N = Math.round(T * FPS);
     const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-i', '-',
-      '-vf', 'scale=1440:1080:flags=neighbor,fps=30,format=yuv420p', '-c:v', 'libx264', '-crf', '24', '-preset', 'medium', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+      '-vf', 'scale=1440:1080:flags=neighbor,fps=30,format=yuv420p', '-c:v', 'libx264', '-crf', '30', '-preset', 'medium', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
     for (let i = 0; i < N; i++) {
       const d = await grab(i / FPS, 0.95);
       if (!ff.stdin.write(Buffer.from(d.split(',')[1], 'base64'))) await new Promise(r => ff.stdin.once('drain', r));
