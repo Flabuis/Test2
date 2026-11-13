@@ -13,3 +13,4 @@ animation/seriya-6-ps1/vo/*.wav
 mandela/*/sfx.wav
 mandela/*/vo/*.wav
 mandela/*/stills/
+__pycache__/
