@@ -57,7 +57,13 @@ const hand=new THREE.Group();scene.add(hand);const fingers=[],thumb=[];
    [L,L*.7,L*.6].forEach((l,k)=>{const j=new THREE.Group();j.position.set(k?0:x,0,k?-segs[k-1].l:z);parent.add(j);const s=box(.022-k*.002,.022-k*.002,l,k%2?skd:sk);s.position.z=-l/2;j.add(s);
      if(k===2){const n=box(.016,.006,.012,nl);n.position.set(0,.011,-l+.007);j.add(n)}segs.push({j,l});parent=j});fingers.push(segs)});
  let parent=hand;[[.04,.4],[.035,.25]].forEach(([l,a],k)=>{const j=new THREE.Group();if(!k){j.position.set(-.055,-.008,-.03);j.rotation.set(0,.75,0)}else j.position.z=-.04;parent.add(j);
-   const s=box(.026,.024,l,sk);s.position.z=-l/2;j.add(s);if(k===1){const n=box(.018,.006,.012,nl);n.position.set(0,.012,-l+.008);j.add(n)}thumb.push(j);parent=j})}
+   const s=box(.026,.024,l,sk);s.position.z=-l/2;j.add(s);if(k===1){const n=box(.018,.006,.012,nl);n.position.set(0,.012,-l+.008);j.add(n)}thumb.push(j);parent=j})
+ hand.traverse(o=>{if(o.isMesh&&o.material===sk)o.userData.sk=1;if(o.isMesh&&o.material===skd)o.userData.sk=2});
+ fingers.forEach((f,i)=>{const st=box(.024,.024,.018,M({color:0x6a0a08}));st.position.copy(f[0].j.position).add(new THREE.Vector3(0,0,-.006));st.visible=false;hand.add(st);f.stump=st})}
+// вид руки: {blood:true, missing:номер пальца 0..3}; без опций — обычная рука
+const TXB={a:tex(8,8,(g,w,h)=>{noise(g,w,h,['#c89a7a','#c09276','#7a1410','#5a0a08','#c89a7a'],16)}),b:tex(8,8,(g,w,h)=>noise(g,w,h,['#a87a5e','#6a1008','#4a0806','#9e725a'],17))};
+const MB={1:[M({map:TX.skin}),M({map:TXB.a})],2:[M({map:TX.skinD}),M({map:TXB.b})]};
+function handStyle(o={}){hand.traverse(m=>{if(m.userData.sk)m.material=MB[m.userData.sk][o.blood?1:0]});fingers.forEach((f,i)=>{const miss=o.missing===i;f[0].j.visible=!miss;f.stump.visible=miss})}
 function curl(k){fingers.forEach((f,i)=>f.forEach((s,j)=>s.j.rotation.x=-k*(.75+.15*j)*(1-.05*i)));thumb[0].rotation.x=-k*.3;thumb[1].rotation.x=-k*.6}
 // свет
 const amb=new THREE.AmbientLight(0x404858,.25);scene.add(amb);
@@ -109,7 +115,7 @@ export function intro(t,ctx,epFrame,vol,opts={}){
   scrTex.needsUpdate=true;
   const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<10.9?1.6:t<11.1?.2:1.3)*flick*fade;amb.intensity=.25*fade;
   spot.intensity=t<5.5?0:t<5.6?3:8*(.95+.05*hash(Math.floor(t*FPS),5));slotLed.material.color.set(t>10.5?0xff2020:0x300000);
-  handAct(t,vol,opts.cut);if(opts.hook)opts.hook(t,scene);
+  handStyle(opts.hand);handAct(t,vol,opts.cut);if(opts.hook)opts.hook(t,scene);
   const back=opts.cut?(t>=opts.cut?0:1):(1-eInOut(P(t,9.0,10.0)));
   cameraFor(eInOut(P(t,12.0,14.0)),eInOut(P(t,6.8,8.4))*back);handL.position.copy(hand.position).add(new THREE.Vector3(.3,.5,.6));handL.intensity=hand.visible?1.4:0;
   draw3D(scene,camera,ctx);
@@ -123,13 +129,14 @@ export function intro(t,ctx,epFrame,vol,opts={}){
 
 // ---------- кадр аутро ----------
 // hook(t, scene) — необязательный крючок серии: можно добавить в комнату что-то своё (по умолчанию аутро одинаковое)
-export function outro(t,ctx,epFrame,vol,D,hook){
+// screenFn(t, g) — необязательно: что показывает экран после того, как кассета выехала (том 4: улыбка)
+export function outro(t,ctx,epFrame,vol,D,hook,screenFn){
   tapes.forEach((tp,i)=>{tp.visible=i!==vol-1;tp.position.copy(rest(i+1));tp.rotation.set(0,0,0)});hand.visible=false;
   const tape=tapes[vol-1];const ej=P(t,2.8,3.3);tape.visible=t>=2.8;tape.position.set(-.12,.78,lerp(.34,.58,eOut(ej)));tape.rotation.set(0,0,Math.PI/2);
-  if(t<1.0)scrX.drawImage(epFrame(D-.01),0,0);else if(t<2.8)screenNoise(t,.8);else{scrX.fillStyle='#000';scrX.fillRect(0,0,RW,RH)}scrTex.needsUpdate=true;
-  const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<1?.6:t<2.8?1.6:.0)*flick;amb.intensity=.25;slotLed.material.color.set(t<2.8?0xff2020:0x300000);
+  if(t<1.0)scrX.drawImage(epFrame(D-.01),0,0);else if(t<2.8)screenNoise(t,.8);else{scrX.fillStyle='#000';scrX.fillRect(0,0,RW,RH);if(screenFn&&t>=2.9)screenFn(t,scrX)}scrTex.needsUpdate=true;
+  const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<1?.6:t<2.8?1.6:screenFn&&t>=2.9?.7:.0)*flick;amb.intensity=.25;slotLed.material.color.set(t<2.8?0xff2020:0x300000);
   spot.intensity=t<4.2?8:0;
   cameraFor(1-eInOut(P(t,0,2.6)));if(hook)hook(t,scene);
   draw3D(scene,camera,ctx);
-  const dk=P(t,4.0,6.6);if(dk>0){ctx.fillStyle=`rgba(0,0,0,${Math.round(dk*16)/16})`;ctx.fillRect(0,0,RW,RH)}
+  let dk=P(t,4.0,6.6);if(screenFn){dk=Math.min(dk,.72);if(t>6.75)dk=1}if(dk>0){ctx.fillStyle=`rgba(0,0,0,${Math.round(dk*16)/16})`;ctx.fillRect(0,0,RW,RH)}
 }
