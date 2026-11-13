@@ -150,3 +150,6 @@ export function outro(t,ctx,epFrame,vol,D,hook,screenFn){
   draw3D(scene,camera,ctx);
   let dk=P(t,4.0,6.6);if(screenFn){dk=Math.min(dk,.72);if(t>6.75)dk=1}if(dk>0){ctx.fillStyle=`rgba(0,0,0,${Math.round(dk*16)/16})`;ctx.fillRect(0,0,RW,RH)}
 }
+
+// внутренности комнаты — для особого интро/аутро финала (common/finale.js); обычные интро/аутро это не меняет
+export const STAGE={scene,camera,tapes,scrX,scrTex,tvL,amb,spot,slotLed,handL,SCR,TX,rest,cameraFor,screenNoise,makeTape,VOLX,hand};

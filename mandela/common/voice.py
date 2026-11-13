@@ -4,7 +4,7 @@ R — диктор: RHVoice aleksandr-hq, огрублённый (ниже, хр
 A — альтернат: низкий, плавающий по высоте, с «неправильными» формантами и эхом.
 M — живой человек на любительской записи: mikhail, полоса микрофона видеокамеры, без огрубления.
 X — диктор с искажениями: местами проседает по высоте, заикается, хрустит (сигнал «захватывают»).
-Q — совсем сломанный диктор (много срывов). D — тяжёлый искажённый голос (очень низко, перегруз).
+Q — совсем сломанный диктор (много срывов). D — тяжёлый искажённый голос (очень низко, перегруз). r — настоящий голос диктора, тихо и издалека.
 S — диктор, который всё сильнее замедляется и проседает (предупреждение «выключите кассету»).
 F — голос по телефону (автоответчик): elena, телефонная полоса. W — тот же голос, но «не тот»: ниже, плывёт, медленнее.
 Нужно: rhvoice rhvoice-russian, pip install pyworld soundfile, numpy, scipy.
@@ -14,7 +14,7 @@ import numpy as np, soundfile as sf, pyworld as pw
 from scipy.signal import butter, lfilter, resample_poly
 
 SR = 44100
-VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail', 'F': 'elena', 'W': 'elena', 'X': 'aleksandr-hq', 'S': 'aleksandr-hq', 'Q': 'aleksandr-hq', 'D': 'aleksandr-hq'}
+VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail', 'F': 'elena', 'W': 'elena', 'X': 'aleksandr-hq', 'S': 'aleksandr-hq', 'Q': 'aleksandr-hq', 'D': 'aleksandr-hq', 'r': 'aleksandr-hq'}
 
 
 def bp(x, lo, hi, sr):
@@ -87,6 +87,13 @@ def demon(x, sr):
     return bp(e, 60, 5000, sr)
 
 
+def distant(x, sr):
+    """r — настоящий голос диктора, тихо и издалека: огрублённый, без верхов, с длинным хвостом."""
+    y = rough(x, sr); y = bp(y, 150, 2200, sr); d = int(.11 * sr); e = np.zeros(len(y) + 6 * d)
+    for i, g in enumerate((1, .5, .32, .2, .12, .07)): e[i * d:i * d + len(y)] += y * g
+    return e
+
+
 def slowing(x, sr):
     f0, t = pw.harvest(x, sr, f0_floor=50, f0_ceil=400, frame_period=5)
     sp = pw.cheaptrick(x, f0, t, sr); ap = pw.d4c(x, f0, t, sr); n = len(f0)
@@ -120,7 +127,7 @@ def main():
         if len(p) != 4: continue
         a, b, who, text = float(p[0]), float(p[1]), p[2], p[3]
         x, sr = tts(text, VOICE[who])
-        y = {'R': rough, 'A': alternate, 'M': camcorder, 'F': phone, 'W': wrong, 'X': glitched, 'S': slowing, 'Q': broken, 'D': demon}[who](x, sr)
+        y = {'R': rough, 'A': alternate, 'M': camcorder, 'F': phone, 'W': wrong, 'X': glitched, 'S': slowing, 'Q': broken, 'D': demon, 'r': distant}[who](x, sr)
         y = resample_poly(y, SR, sr)
         # подогнать под окно субтитра, но не быстрее x1.25 (через ffmpeg atempo)
         win = b - a; dur = len(y) / SR; tempo = 1.0 if who == 'S' else min(1.25, max(1.0, dur / win))
@@ -128,7 +135,7 @@ def main():
             i, o = tempfile.mktemp(suffix='.wav'), tempfile.mktemp(suffix='.wav')
             sf.write(i, y, SR); subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', i, '-af', f'atempo={tempo:.3f}', o], check=True)
             y, _ = sf.read(o); os.remove(i); os.remove(o)
-        y = y / (np.max(np.abs(y)) + 1e-9) * (.8 if who == 'R' else .9)
+        y = y / (np.max(np.abs(y)) + 1e-9) * (.28 if who == 'r' else .8 if who == 'R' else .9)
         s = int((a + shift) * SR); out[s:s + len(y)] += y[:len(out) - s]
         print(f'{a:6.1f} {who} x{tempo:.2f} конец {a + len(y) / SR:6.2f} (окно до {b})  {text}')
     sf.write(os.path.join(ep, 'vo', 'voice.wav'), np.clip(out, -1, 1), SR)
