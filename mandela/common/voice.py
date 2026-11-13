@@ -2,6 +2,7 @@
 Читает vo/lines.tsv (начало, конец, кто, текст; время — от начала серии без интро), пишет vo/voice.wav.
 R — диктор: RHVoice aleksandr-hq, огрублённый (ниже, хрипотца, лёгкий перегруз), интонация живая.
 A — альтернат: низкий, плавающий по высоте, с «неправильными» формантами и эхом.
+M — живой человек на любительской записи: mikhail, полоса микрофона видеокамеры, без огрубления.
 Нужно: rhvoice rhvoice-russian, pip install pyworld soundfile, numpy, scipy.
 """
 import sys, os, subprocess, tempfile
@@ -9,7 +10,7 @@ import numpy as np, soundfile as sf, pyworld as pw
 from scipy.signal import butter, lfilter, resample_poly
 
 SR = 44100
-VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy'}
+VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail'}
 
 
 def bp(x, lo, hi, sr):
@@ -37,6 +38,10 @@ def rough(x, sr, pitch=.82, warp=.93, comp=.6, drive=2.2):
     return bp(y, 90, 6500, sr)
 
 
+def camcorder(x, sr):
+    y = bp(x, 180, 5200, sr); y = y / (np.max(np.abs(y)) + 1e-9); return np.tanh(y * 1.4) / np.tanh(1.4)
+
+
 def alternate(x, sr):
     f0, t = pw.harvest(x, sr, f0_floor=60, f0_ceil=400, frame_period=5)
     sp = pw.cheaptrick(x, f0, t, sr); ap = pw.d4c(x, f0, t, sr)
@@ -58,7 +63,7 @@ def main():
         if len(p) != 4: continue
         a, b, who, text = float(p[0]), float(p[1]), p[2], p[3]
         x, sr = tts(text, VOICE[who])
-        y = rough(x, sr) if who == 'R' else alternate(x, sr)
+        y = rough(x, sr) if who == 'R' else alternate(x, sr) if who == 'A' else camcorder(x, sr)
         y = resample_poly(y, SR, sr)
         # подогнать под окно субтитра, но не быстрее x1.25 (через ffmpeg atempo)
         win = b - a; dur = len(y) / SR; tempo = min(1.25, max(1.0, dur / win))

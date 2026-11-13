@@ -3,6 +3,7 @@
 import {THREE,FPS,RW,RH,mulberry,hash,clamp,P,lerp,eOut,eIn,eInOut,col,M,box,draw3D,canvas2d,tex,noise,text,snow,hardAlpha,MONO} from './core.js';
 
 export const INTRO=14, OUTRO=7, NVOL=6;
+export function stageScene(){return scene}
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x000000);scene.fog=new THREE.Fog(0x000000,3,9);
 const camera=new THREE.PerspectiveCamera(50,RW/RH,.02,50);
 
@@ -116,13 +117,14 @@ export function intro(t,ctx,epFrame,vol){
 }
 
 // ---------- кадр аутро ----------
-export function outro(t,ctx,epFrame,vol,D){
+// hook(t, scene) — необязательный крючок серии: можно добавить в комнату что-то своё (по умолчанию аутро одинаковое)
+export function outro(t,ctx,epFrame,vol,D,hook){
   tapes.forEach((tp,i)=>{tp.visible=i!==vol-1;tp.position.copy(rest(i+1));tp.rotation.set(0,0,0)});hand.visible=false;
   const tape=tapes[vol-1];const ej=P(t,2.8,3.3);tape.visible=t>=2.8;tape.position.set(-.12,.78,lerp(.34,.58,eOut(ej)));tape.rotation.set(0,0,Math.PI/2);
   if(t<1.0)scrX.drawImage(epFrame(D-.01),0,0);else if(t<2.8)screenNoise(t,.8);else{scrX.fillStyle='#000';scrX.fillRect(0,0,RW,RH)}scrTex.needsUpdate=true;
   const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<1?.6:t<2.8?1.6:.0)*flick;amb.intensity=.25;slotLed.material.color.set(t<2.8?0xff2020:0x300000);
   spot.intensity=t<4.2?8:0;
-  cameraFor(1-eInOut(P(t,0,2.6)));
+  cameraFor(1-eInOut(P(t,0,2.6)));if(hook)hook(t,scene);
   draw3D(scene,camera,ctx);
   const dk=P(t,4.0,6.6);if(dk>0){ctx.fillStyle=`rgba(0,0,0,${Math.round(dk*16)/16})`;ctx.fillRect(0,0,RW,RH)}
 }
