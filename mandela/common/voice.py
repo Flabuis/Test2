@@ -1,6 +1,6 @@
 """Озвучка серии: python3 ../common/voice.py <папка серии> <сдвиг_сек> <длина_сек>
 Читает vo/lines.tsv (начало, конец, кто, текст; время — от начала серии без интро), пишет vo/voice.wav.
-R — диктор экстренных оповещений: RHVoice, интонация выровнена в монотон (WORLD), звук «из телевизора».
+R — диктор: RHVoice aleksandr-hq, огрублённый (ниже, хрипотца, лёгкий перегруз), интонация живая.
 A — альтернат: низкий, плавающий по высоте, с «неправильными» формантами и эхом.
 Нужно: rhvoice rhvoice-russian, pip install pyworld soundfile, numpy, scipy.
 """
@@ -23,14 +23,18 @@ def tts(text, voice):
     return x.astype(np.float64), sr
 
 
-def robot(x, sr, f=88.0):
-    f0, t = pw.harvest(x, sr, f0_floor=60, f0_ceil=400, frame_period=5)
+def rough(x, sr, pitch=.82, warp=.93, comp=.6, drive=2.2):
+    """Грубый мужской голос: ниже, интонация живая, но сжатая, форманты чуть ниже, хрипотца и лёгкий перегруз."""
+    f0, t = pw.harvest(x, sr, f0_floor=50, f0_ceil=400, frame_period=5)
     sp = pw.cheaptrick(x, f0, t, sr); ap = pw.d4c(x, f0, t, sr)
-    f1 = np.where(f0 > 0, f * (1 + .01 * np.sin(np.arange(len(f0)) * .3)), 0)   # ровная высота
-    y = pw.synthesize(f1, sp, ap, sr, frame_period=5)
-    y = bp(y, 250, 3800, sr)                                                        # динамик телевизора
-    y = np.round(y / (np.max(np.abs(y)) + 1e-9) * 96) / 96                          # лёгкий «цифровой» хруст
-    return y
+    v = f0 > 0; m = np.log(f0[v]).mean(); f1 = f0.copy()
+    f1[v] = np.exp((np.log(f0[v]) - m) * comp + m + np.log(pitch))
+    n = sp.shape[1]; src = np.clip(np.arange(n) / warp, 0, n - 1)
+    sp = np.stack([np.interp(src, np.arange(n), r) for r in sp])
+    ap = np.clip(ap + .08, 0, 1)
+    y = pw.synthesize(f1, sp, ap, sr, frame_period=5); y = y / (np.max(np.abs(y)) + 1e-9)
+    y = np.tanh(y * drive) / np.tanh(drive)
+    return bp(y, 90, 6500, sr)
 
 
 def alternate(x, sr):
@@ -54,7 +58,7 @@ def main():
         if len(p) != 4: continue
         a, b, who, text = float(p[0]), float(p[1]), p[2], p[3]
         x, sr = tts(text, VOICE[who])
-        y = robot(x, sr) if who == 'R' else alternate(x, sr)
+        y = rough(x, sr) if who == 'R' else alternate(x, sr)
         y = resample_poly(y, SR, sr)
         # подогнать под окно субтитра, но не быстрее x1.25 (через ffmpeg atempo)
         win = b - a; dur = len(y) / SR; tempo = min(1.25, max(1.0, dur / win))
