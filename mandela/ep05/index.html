@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Каталог: том 5</title>
+<link href="https://fonts.googleapis.com/css2?family=PT+Mono&display=block" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#000}
+  #out{position:absolute;inset:0;margin:auto;display:block;height:100vh;width:133.33vh;max-width:100vw;max-height:75vw;image-rendering:pixelated}
+</style>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.js"}}</script>
+</head>
+<body>
+<canvas id="out" width="960" height="720"></canvas>
+<script type="module">
+// Сборка серии: общее интро + серия + общее аутро.
+import {FPS,RW,RH,canvas2d,dither,present,loadFonts,subtitle,vhs} from '../common/core.js';
+import {INTRO,OUTRO,intro,outro} from '../common/stage.js';
+import {VOL,D,drawEp,playScreen,OUTRO_CAPS} from './episode.js';
+const T=INTRO+D+OUTRO;
+const [sc,sx]=canvas2d(),[ec,ex]=canvas2d();const out=document.getElementById('out');
+const epFrame=t=>{drawEp(t,ex);return ec};
+function render(t){t=Math.floor(t*FPS+1e-6)/FPS;
+  if(t<INTRO){intro(t,sx,epFrame,VOL,{glitch:true,playScreen});if(t>=4.6)dither(sx)}
+  else if(t<INTRO+D){drawEp(t-INTRO,sx)}
+  else{const to=t-INTRO-D;outro(to,sx,epFrame,VOL,D);dither(sx);for(const [a,b,,s] of OUTRO_CAPS)subtitle(sx,s,to,a,b);if(to>=2.9&&to<4.6)vhs(sx,t,1.5)}
+  present(sc,out)}
+window.T=T;window.FPS=FPS;window.render=render;
+window.__ready=loadFonts();
+if(!window.__RENDER_MODE){window.__ready.then(()=>{let st=null;const go=ts=>{if(st===null)st=ts;render(((ts-st)/1000)%T);requestAnimationFrame(go)};requestAnimationFrame(go);out.addEventListener('click',()=>st=null)})}
+</script>
+</body>
+</html>

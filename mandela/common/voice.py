@@ -4,6 +4,7 @@ R — диктор: RHVoice aleksandr-hq, огрублённый (ниже, хр
 A — альтернат: низкий, плавающий по высоте, с «неправильными» формантами и эхом.
 M — живой человек на любительской записи: mikhail, полоса микрофона видеокамеры, без огрубления.
 X — диктор с искажениями: местами проседает по высоте, заикается, хрустит (сигнал «захватывают»).
+Q — совсем сломанный диктор (много срывов). D — тяжёлый искажённый голос (очень низко, перегруз).
 S — диктор, который всё сильнее замедляется и проседает (предупреждение «выключите кассету»).
 F — голос по телефону (автоответчик): elena, телефонная полоса. W — тот же голос, но «не тот»: ниже, плывёт, медленнее.
 Нужно: rhvoice rhvoice-russian, pip install pyworld soundfile, numpy, scipy.
@@ -13,7 +14,7 @@ import numpy as np, soundfile as sf, pyworld as pw
 from scipy.signal import butter, lfilter, resample_poly
 
 SR = 44100
-VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail', 'F': 'elena', 'W': 'elena', 'X': 'aleksandr-hq', 'S': 'aleksandr-hq'}
+VOICE = {'R': 'aleksandr-hq', 'A': 'yuriy', 'M': 'mikhail', 'F': 'elena', 'W': 'elena', 'X': 'aleksandr-hq', 'S': 'aleksandr-hq', 'Q': 'aleksandr-hq', 'D': 'aleksandr-hq'}
 
 
 def bp(x, lo, hi, sr):
@@ -58,9 +59,9 @@ def wrong(x, sr):
     return phone(y, sr)
 
 
-def glitched(x, sr):
+def glitched(x, sr, cnt=3):
     y = rough(x, sr); n = len(y); r = np.random.default_rng(int(abs(hash(n)) % 2**31) + 7)
-    for _ in range(3):
+    for _ in range(cnt):
         L = int(r.uniform(.18, .38) * sr); a = int(r.uniform(.1, .85) * max(1, n - L)); seg = y[a:a + L].copy(); kind = r.integers(0, 3)
         if kind == 0:   # просадка по высоте
             seg = resample_poly(seg, 10, 7)[:L]; seg = np.pad(seg, (0, L - len(seg)))
@@ -70,6 +71,20 @@ def glitched(x, sr):
             seg = np.round(seg * 6) / 6 * (np.arange(L) % 40 < 30)
         L = min(L, len(y) - a); seg = np.pad(seg, (0, max(0, L - len(seg))))[:L]; y[a:a + L] = seg
     return y
+
+
+def broken(x, sr):
+    """Q — совсем сломанный диктор: много срывов + плавающая высота."""
+    y = glitched(x, sr, 6); t = np.arange(len(y)) / sr
+    return y * (1 + .25 * np.sin(2 * np.pi * 6 * t)) * (np.sin(2 * np.pi * 13 * t) > -.7)
+
+
+def demon(x, sr):
+    """D — тяжёлый искажённый голос: очень низко, кольцевая модуляция, перегруз."""
+    y = rough(x, sr, pitch=.55, warp=.82, comp=.3, drive=4.0); t = np.arange(len(y)) / sr
+    y = y * (.6 + .4 * np.sin(2 * np.pi * 37 * t)); y = np.round(y * 10) / 10
+    d = int(.07 * sr); e = np.zeros(len(y) + 2 * d); e[:len(y)] += y; e[d:d + len(y)] += y * .5; e[2 * d:2 * d + len(y)] += y * .25
+    return bp(e, 60, 5000, sr)
 
 
 def slowing(x, sr):
@@ -105,7 +120,7 @@ def main():
         if len(p) != 4: continue
         a, b, who, text = float(p[0]), float(p[1]), p[2], p[3]
         x, sr = tts(text, VOICE[who])
-        y = {'R': rough, 'A': alternate, 'M': camcorder, 'F': phone, 'W': wrong, 'X': glitched, 'S': slowing}[who](x, sr)
+        y = {'R': rough, 'A': alternate, 'M': camcorder, 'F': phone, 'W': wrong, 'X': glitched, 'S': slowing, 'Q': broken, 'D': demon}[who](x, sr)
         y = resample_poly(y, SR, sr)
         # подогнать под окно субтитра, но не быстрее x1.25 (через ffmpeg atempo)
         win = b - a; dur = len(y) / SR; tempo = 1.0 if who == 'S' else min(1.25, max(1.0, dur / win))

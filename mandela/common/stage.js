@@ -99,8 +99,16 @@ function handAct(t,vol,cut){const tape=tapes[vol-1],r=rest(vol),slotP=new THREE.
     hand.visible=false;const k=P(t,cut,10.6),jit=Math.floor(t*FPS)%3===0?.01:0;tp=t<10.6?pre.clone().lerp(inS,k*k+jit):inS.clone().lerp(deep,eOut(P(t,10.6,10.9)));rz=Math.PI/2}
   hand.position.copy(hp||tp.clone().add(off));hand.rotation.set(0,YAW,0);hand.rotateX(rx);curl(c);
   tape.position.copy(tp);tape.rotation.set(0,0,rz)}
+// глюки картинки для вариантов интро: разрывы строк, перепутанные каналы, провалы в чёрное
+function glitchPost(g,t){const f=Math.floor(t*FPS),r=hash(f,91);if(r<.05){g.fillStyle='#000';g.fillRect(0,0,RW,RH);return}
+  const d=g.getImageData(0,0,RW,RH),a=d.data,o=new Uint8ClampedArray(a);const nb=1+Math.floor(hash(f,92)*3);
+  for(let b=0;b<nb;b++){const y0=Math.floor(hash(f,93+b)*RH),h=4+Math.floor(hash(f,96+b)*24),sh=Math.round((hash(f,99+b)-.5)*80);
+    for(let y=y0;y<Math.min(RH,y0+h);y++)for(let x=0;x<RW;x++){const xs=(x+sh+RW)%RW,i=(y*RW+x)*4,j=(y*RW+xs)*4;a[i]=o[j+(r<.3?2:0)];a[i+1]=o[j+1];a[i+2]=o[j+(r<.3?0:2)]}}
+  if(r>.94)for(let i=0;i<a.length;i+=4){a[i]=255-a[i];a[i+1]=255-a[i+1];a[i+2]=255-a[i+2]}
+  g.putImageData(d,0,0)}
 // ---------- кадр интро ----------
 // ctx — канвас 320x240; epFrame(tEp) рисует кадр серии в канвас и возвращает его; vol — номер тома
+// opts.glitch — интро глючит; opts.playScreen(t, g) — что показать на экране вместо PLAY (том 5: предупреждение)
 // opts.cut — время склейки: рука пропадает, кассета вставляется сама; opts.hook(t, scene) — крючок серии
 export function intro(t,ctx,epFrame,vol,opts={}){
   if(t<4.6){ctx.fillStyle='#000';ctx.fillRect(0,0,RW,RH);const a=P(t,.3,.9)*(1-P(t,4.0,4.6));if(a<=0)return;ctx.globalAlpha=Math.round(a*8)/8;
@@ -108,10 +116,11 @@ export function intro(t,ctx,epFrame,vol,opts={}){
     text(ctx,'автор оригинала — Alex Kister',RW/2,112,{align:'center',color:'#d0d0d0'});
     text(ctx,'неофициальная фан-адаптация.',RW/2,156,{align:'center',size:9,color:'#808080'});text(ctx,'все права на оригинал принадлежат автору.',RW/2,168,{align:'center',size:9,color:'#808080'});
     ctx.globalAlpha=1;hardAlpha(ctx,1);return}
+  const t0=t;if(opts.glitch){const f=Math.floor(t*FPS);if(hash(Math.floor(f/3),77)<.2)t=Math.max(4.6,t-3/FPS)}   // заикание: кадры повторяются
   tapes.forEach((tp,i)=>{tp.visible=true;tp.position.copy(rest(i+1));tp.rotation.set(0,0,0)});hand.visible=false;
   const fade=P(t,4.6,6.2);
   // экран
-  if(t<10.9)screenNoise(t,.8);else if(t<11.1){scrX.fillStyle='#000';scrX.fillRect(0,0,RW,RH)}else if(t<12.6)screenPlay(t,vol);else scrX.drawImage(epFrame(0),0,0);
+  if(t<10.9)screenNoise(t,.8);else if(t<11.1){scrX.fillStyle='#000';scrX.fillRect(0,0,RW,RH)}else if(t<12.6){if(opts.playScreen)opts.playScreen(t,scrX);else screenPlay(t,vol)}else scrX.drawImage(epFrame(0),0,0);
   scrTex.needsUpdate=true;
   const flick=.85+hash(Math.floor(t*FPS),3)*.3;tvL.intensity=(t<10.9?1.6:t<11.1?.2:1.3)*flick*fade;amb.intensity=.25*fade;
   spot.intensity=t<5.5?0:t<5.6?3:8*(.95+.05*hash(Math.floor(t*FPS),5));slotLed.material.color.set(t>10.5?0xff2020:0x300000);
@@ -125,6 +134,7 @@ export function intro(t,ctx,epFrame,vol,opts={}){
   if(t>=5.3&&t<7.6&&!(t<5.7&&Math.floor(t*FPS)%2)){const v=new THREE.Vector3(1.35,1.38,0).project(camera),x=Math.round((v.x*.5+.5)*RW),y=Math.round((-v.y*.5+.5)*RH);
     text(ctx,'THE MANDELA',x,y-12,{align:'center',size:13,color:'#e8e2d0'});text(ctx,'CATALOGUE',x,y+2,{align:'center',size:13,color:'#e8e2d0'});
     text(ctx,'фан-адаптация',x,y+18,{align:'center',size:8,color:'#a09a8a'})}
+  if(opts.glitch)glitchPost(ctx,t0)
 }
 
 // ---------- кадр аутро ----------
